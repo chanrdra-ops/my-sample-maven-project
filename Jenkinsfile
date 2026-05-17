@@ -15,7 +15,14 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                // Configured with your exact Jenkins credential ID: github-pat-token
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/chanrdra-ops/my-sample-maven-project.git',
+                        credentialsId: 'github-pat-token'
+                    ]]
+                ])
             }
         }
 
@@ -36,7 +43,7 @@ pipeline {
     post {
         always {
             junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'target/reports/**, target/screenshots/**, target/surefire-reports/**'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'target/reports/**/*, target/screenshots/**/*, target/surefire-reports/**/*'
         }
     }
 }
