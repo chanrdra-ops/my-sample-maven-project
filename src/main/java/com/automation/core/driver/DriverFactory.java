@@ -18,8 +18,13 @@ public final class DriverFactory {
 
     public static WebDriver createDriver() {
         ConfigManager config = ConfigManager.getInstance();
-        BrowserType browserType = BrowserType.from(config.getRequired("browser"));
-        boolean headless = config.getBoolean("headless");
+
+        // Dynamic fallback: prioritize Maven system properties over the local config file
+        String browserProp = System.getProperty("browser", config.getRequired("browser"));
+        String headlessProp = System.getProperty("headless", String.valueOf(config.getBoolean("headless")));
+
+        BrowserType browserType = BrowserType.from(browserProp);
+        boolean headless = Boolean.parseBoolean(headlessProp);
 
         WebDriver driver = switch (browserType) {
             case CHROME -> createChromeDriver(headless);
@@ -41,9 +46,14 @@ public final class DriverFactory {
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--disable-notifications");
         options.addArguments("--remote-allow-origins=*");
+
         if (headless) {
             options.addArguments("--headless=new");
             options.addArguments("--window-size=1920,1080");
+            // Mandatory cloud infrastructure settings to prevent Linux crashes
+            options.addArguments("--no-sandbox");
+            options.addArguments("--disable-dev-shm-usage");
+            options.addArguments("--disable-gpu");
         }
         return new ChromeDriver(options);
     }
@@ -64,6 +74,8 @@ public final class DriverFactory {
         if (headless) {
             options.addArguments("--headless=new");
             options.addArguments("--window-size=1920,1080");
+            options.addArguments("--no-sandbox");
+            options.addArguments("--disable-dev-shm-usage");
         }
         return new EdgeDriver(options);
     }
