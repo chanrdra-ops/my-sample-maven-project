@@ -1,0 +1,73 @@
+name: Maven Test Suite
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Test environment
+        default: qa
+        required: true
+      browser:
+        description: Browser
+        default: chrome
+        required: true
+      headless:
+        description: Run browser in headless mode
+        default: "true"
+        required: true
+
+jobs:
+  test:
+    name: Maven Tests
+    runs-on: ubuntu-latest
+
+    env:
+      TEST_ENV: ${{ github.event.inputs.environment || 'qa' }}
+      TEST_BROWSER: ${{ github.event.inputs.browser || 'chrome' }}
+      TEST_HEADLESS: ${{ github.event.inputs.headless || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Run tests
+        run: mvn -B clean test -Denv="$TEST_ENV" -Dbrowser="$TEST_BROWSER" -Dheadless="$TEST_HEADLESS"
+
+      - name: Upload Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports
+          if-no-files-found: ignore
+
+      - name: Upload Extent report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extent-report
+          path: target/reports
+          if-no-files-found: ignore
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: target/screenshots
+          if-no-files-found: ignore
