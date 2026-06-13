@@ -6,6 +6,11 @@ pipeline {
         disableConcurrentBuilds()
     }
 
+    // Triggers the execution whenever GitHub fires a webhook event
+    triggers {
+        githubPush()
+    }
+
     parameters {
         choice(name: 'ENVIRONMENT', choices: ['qa', 'dev', 'stage'], description: 'Test environment')
         choice(name: 'BROWSER', choices: ['chrome', 'firefox', 'edge'], description: 'Browser')
@@ -15,7 +20,6 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // Configured with your exact Jenkins credential ID: github-pat-token
                 checkout([$class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
@@ -44,6 +48,30 @@ pipeline {
         always {
             junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
             archiveArtifacts allowEmptyArchive: true, artifacts: 'target/reports/**/*, target/screenshots/**/*, target/surefire-reports/**/*'
+        }
+        success {
+            script {
+                try {
+                    // Extract Jira Issue Keys (e.g., QA-123) from the triggering Git commit message
+                    def jiraIssues = jiraGetIssuesFromScm()
+
+                    if (jiraIssues != null && !jiraIssues.isEmpty()) {
+                        for (issue in jiraIssues) {
+                            echo "Found Jira ticket in commit log: ${issue}"
+
+                            // Transitions the identified Jira story straight to 'Done'
+                            jiraTransitionIssue idOrKey: issue, transitionName: 'Done'
+
+                            // Leaves an audit comment trace detailing the test results inside the issue
+                            jiraAddComment idOrKey: issue, comment: "Jenkins Automation Build #${env.BUILD_NUMBER} passed successfully! Moving task to Done."
+                        }
+                    } else {
+                        echo "No valid Jira issue keys detected inside the Git commit message logs."
+                    }
+                } catch (Exception e) {
+                    echo "Jira status transition skipped: Ensure the Jira Steps plugin is configured. Error: ${e.getMessage()}"
+                }
+            }
         }
     }
 }
