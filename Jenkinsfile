@@ -6,7 +6,7 @@ pipeline {
         disableConcurrentBuilds()
     }
 
-    // Triggers the execution Cehckong data whenever GitHub fires a webhook event
+    // Triggers the execution whenever GitHub fires a webhook event
     triggers {
         githubPush()
     }
@@ -23,7 +23,7 @@ pipeline {
                 checkout([$class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/chanrdra-ops/my-sample-maven-project.git',
+                        url: 'https://github.com',
                         credentialsId: 'github-pat-token'
                     ]]
                 ])
@@ -34,10 +34,21 @@ pipeline {
             steps {
                 script {
                     def command = "mvn -B clean test -Denv=${params.ENVIRONMENT} -Dbrowser=${params.BROWSER} -Dheadless=${params.HEADLESS}"
-                    if (isUnix()) {
-                        sh command
+                    
+                    // Dynamically bind the correct Maven home folder based on the OS
+                    if (isUnix() && sh(script: "uname", returnStdout: true).contains("Darwin")) {
+                        withMaven(maven: 'Maven3_Mac') {
+                            sh command
+                        }
+                    } else if (isUnix()) {
+                        withMaven(maven: 'Maven3_Linux') {
+                            sh command
+                        }
                     } else {
-                        bat command
+                        // For Windows fallback environments
+                        withMaven(maven: 'Maven3_Mac') {
+                            bat command
+                        }
                     }
                 }
             }
@@ -52,17 +63,12 @@ pipeline {
         success {
             script {
                 try {
-                    // Extract Jira Issue Keys (e.g., QA-123) from the triggering Git commit message
                     def jiraIssues = jiraGetIssuesFromScm()
 
                     if (jiraIssues != null && !jiraIssues.isEmpty()) {
                         for (issue in jiraIssues) {
                             echo "Found Jira ticket in commit log: ${issue}"
-
-                            // Transitions the identified Jira story straight to 'Done'
                             jiraTransitionIssue idOrKey: issue, transitionName: 'Done'
-
-                            // Leaves an audit comment trace detailing the test results inside the issue
                             jiraAddComment idOrKey: issue, comment: "Jenkins Automation Build #${env.BUILD_NUMBER} passed successfully! Moving task to Done."
                         }
                     } else {
