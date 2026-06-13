@@ -6,7 +6,7 @@ pipeline {
         disableConcurrentBuilds()
     }
 
-    // Triggers the execution whenever GitHub fires a webhook event
+    // Triggers the execution Cehckong data whenever GitHub fires a webhook event
     triggers {
         githubPush()
     }
